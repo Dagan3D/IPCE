@@ -69,7 +69,7 @@ if calibration_valid:
       IPCE_sample["Длина волны, нм"] = currents_sample['Длина волны, нм']
       for current_sample in samples:
         area = area_sample.loc[area_sample["Образец"] == current_sample]["Площадь образца, см2"]
-        IPCE_sample[current_sample] = (currents_sample[current_sample]/1E6/int(area))*1240/currents_sample["Длина волны, нм"]/df["Мощность излучения, мкВт"]*100
+        IPCE_sample[current_sample] = (currents_sample[current_sample]/1E6/(int(area)/10000))*1240/currents_sample["Длина волны, нм"]/df["Мощность излучения, мкВт"]*100
       
       st.line_chart(IPCE_sample.dropna(), x='Длина волны, нм')
       if st.checkbox('Показать таблицу полученных данных'):
