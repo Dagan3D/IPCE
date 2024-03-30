@@ -40,11 +40,20 @@ with st.expander("Калибровочный график"):
   
   st.markdown('''
           ## Калибровочный график   
-          Загрузите его в формате таблицы со столбцами:   
-          **Wavelength, nm - Plot 0** и **I, A - Plot 0**.''')
+          Загрузите его в файле следующего вида:
+          В первой колонке должны быть длинны волн (в нанометрах), которыми освещали образец.  
+          Во второй колонке - измеренный фототок в амперах.  
+
+          |  Wavelength, nm   |  Current, A   |
+          |  ---              | ---           |
+          |  300              | 1.2E-3        |
+          |  305              | 0.2E-2        | 
+          |  ...              | ---           |
+          |  600              | 10.0          |   
+          ''')
   
   calibration_valid = False
-  uploaded_file = st.file_uploader("Файл калибровки")
+  uploaded_file = st.file_uploader("Файл калибровки", type = ['txt', 'csv'])
 
   if uploaded_file is not None:
     df = read_file(uploaded_file)
@@ -61,12 +70,12 @@ with st.expander("Калибровочный график"):
 #%%Файлы данных
 if calibration_valid:
   with st.expander("Файлы данных"):
-    "## Файлы данных"
-    "Загрузите их в формате: Wavelength, nm - Plot 0	I, A - Plot 0"
-    "Полученному образцу будет присвоено имя файла"
+    """## Файлы данных    
+    Сюда можно загружать сразу несколько файлов.  
+    Образцам будет присвоено имя соответствующего файла.  """
 
     data_valid = False
-    uploaded_files = st.file_uploader("Файлы данных", accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Файлы данных", type = ['txt', 'csv'], accept_multiple_files=True)
     
     currents_sample = pd.DataFrame()
     currents_sample['Длина волны, нм'] = df["Длина волны, нм"]
