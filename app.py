@@ -70,9 +70,7 @@ with st.expander("Калибровочный график"):
 #%%Файлы данных
 if calibration_valid:
   with st.expander("Файлы данных"):
-    """## Файлы данных    
-    Сюда можно загружать сразу несколько файлов.  
-    Образцам будет присвоено имя соответствующего файла.  """
+    "## Файлы данных"
 
     data_valid = False
     uploaded_files = st.file_uploader("Файлы данных", type = ['txt', 'csv'], accept_multiple_files=True)
