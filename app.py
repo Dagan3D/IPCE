@@ -40,7 +40,7 @@ with st.expander("Калибровочный график"):
   
   st.markdown('''
           ## Калибровочный график   
-          Загрузите его в файле следующего вида:
+          Загрузите его в файле следующего вида:  
           В первой колонке должны быть длинны волн (в нанометрах), которыми освещали образец.  
           Во второй колонке - измеренный фототок в амперах.  
 
@@ -64,13 +64,16 @@ with st.expander("Калибровочный график"):
 
       fig = px.line(df, x="Длина волны, нм", y="Мощность излучения, мкВт")
       st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-      if st.checkbox('Показать таблицу исходных данных калибровки'):
+      if st.checkbox('Показать таблицу данных калибровки'):
         df
 
 #%%Файлы данных
 if calibration_valid:
   with st.expander("Файлы данных"):
-    "## Файлы данных"
+    """## Файлы данных.   
+Тут можно загружать сразу несколько файлов.  
+Образцам будет присвоено имя файла.
+    """
 
     data_valid = False
     uploaded_files = st.file_uploader("Файлы данных", type = ['txt', 'csv'], accept_multiple_files=True)
@@ -89,7 +92,7 @@ if calibration_valid:
       fig = px.line(currents_sample.dropna(), x="Длина волны, нм", y=samples, labels={'value':"Сила тока, мкА"})
       fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
       st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-      if st.checkbox('Показать таблицу исходных данных фототоков'):
+      if st.checkbox('Показать таблицу исходных фототоков'):
         currents_sample
 
 #%% Учёт площади образца
@@ -131,7 +134,21 @@ if calibration_valid:
       fig = px.line(IPCE_sample.dropna(), x="Длина волны, нм", y=samples, labels={'value':"IPCE, %"})
       fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
       st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-      if st.checkbox('Показать таблицу полученных данных IPCE'):
+      if st.checkbox('Показать таблицу IPCE'):
         IPCE_sample
+
+      @st.cache_data
+      def convert_df(df):
+        # IMPORTANT: Cache the conversion to prevent computation on every rerun
+        return df.to_csv(sep=";", index=False).encode('cp1251')
+
+      csv = convert_df(IPCE_sample)
       
+      st.download_button(
+        label="Скачать результат",
+        data=csv,
+        file_name='IPCE.csv',
+        mime='text/csv',
+        type="primary"
+      )
 
