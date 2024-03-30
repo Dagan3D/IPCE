@@ -14,23 +14,49 @@ def p_diod(x):
     y = 3.1698368227E-09*x**4 - 1.2731281453E-05*x**3 + 1.9132245041E-02*x**2 - 1.2752168975E+01*x + 3.1818412914E+03
   return y
 
-"## Это помощник в обработке файлов для IPCE снятых в 4205 и сохранённых в файлах .txt или .csv"
+
+def read_file(uploaded_file) -> pd.DataFrame:
+  try:
+    if os.path.splitext(uploaded_file.name)[1] == ".txt":
+      dataframe = pd.read_table(uploaded_file)
+    elif os.path.splitext(uploaded_file.name)[1] == ".csv":
+      dataframe = pd.read_csv(uploaded_file, sep=";")
+  
+
+    df = pd.DataFrame()
+    df["Длина волны, нм"] = dataframe[dataframe.columns[0]]
+    df["Сила тока, мкА"] = dataframe[dataframe.columns[1]] * 1E6
+    return df
+  except:
+    st.warning(f'Неверный формат файла "{uploaded_file.name}"', icon="⚠️")
+    return None
+  
+
+
+"""Это программа для обработки данных фототока полученных на спектрофотометре.   
+Приложение поддерживает следующий файлы формата .txt и .csv:    
+"""
+
+
 with st.expander("Калибровочный график"):
+  
   st.markdown('''
           ## Калибровочный график   
           Загрузите его в формате таблицы со столбцами:   
           **Wavelength, nm - Plot 0** и **I, A - Plot 0**.''')
+  
   calibration_valid = False
   uploaded_file = st.file_uploader("Файл калибровки")
+
   if uploaded_file is not None:
-    dataframe = pd.read_table(uploaded_file)
-    df = pd.DataFrame()
-    df["Длина волны, нм"] = dataframe["Wavelength, nm - Plot 0"]
-    df["Cила тока, мкА"] = dataframe["I, A - Plot 0"] * 1E6
-    df["K_diod"] = df['Длина волны, нм'].apply(p_diod)
-    df["Мощность излучения, мкВт"] = dataframe["I, A - Plot 0"]/df["K_diod"]*10e6
-    st.line_chart(df, x="Длина волны, нм", y = [ "Мощность излучения, мкВт"])
-    calibration_valid = True
+    df = read_file(uploaded_file)
+    if df is not None:
+      df["K_diod"] = df['Длина волны, нм'].apply(p_diod)
+      df["Мощность излучения, мкВт"] = df["Сила тока, мкА"]/df["K_diod"]
+      st.line_chart(df, x="Длина волны, нм", y = [ "Мощность излучения, мкВт"])
+      calibration_valid = True
+      if st.checkbox('Показать таблицу исходных данных калибровки'):
+        df
 
 if calibration_valid:
   with st.expander("Файлы данных"):
@@ -38,21 +64,23 @@ if calibration_valid:
     "Загрузите их в формате: Wavelength, nm - Plot 0	I, A - Plot 0"
     "Полученному образцу будет присвоено имя файла"
 
-    uploaded_files = st.file_uploader("Файлы данных [.txt]", accept_multiple_files=True)
+    data_valid = False
+    uploaded_files = st.file_uploader("Файлы данных", accept_multiple_files=True)
     currents_sample = pd.DataFrame()
     currents_sample['Длина волны, нм'] = df["Длина волны, нм"]
     for uploaded_file in uploaded_files:
-      dataframe = pd.read_table(uploaded_file)  
-      currents_sample[os.path.splitext(uploaded_file.name)[0]] = dataframe["I, A - Plot 0"] * 1E6
-
+      dataframe = read_file(uploaded_file)
+      if dataframe is not None:
+        currents_sample[os.path.splitext(uploaded_file.name)[0]] = dataframe["Сила тока, мкА"]
+        data_valid = True
     
-    if(len(currents_sample.columns) > 1):
+    if(data_valid):
       currents_sample.dropna()
       st.line_chart(currents_sample.dropna(), x='Длина волны, нм')
-      if st.checkbox('Показать таблицу исходных данных'):
+      if st.checkbox('Показать таблицу исходных данных фототоков'):
         currents_sample
 
-  if(len(currents_sample.columns) > 1):
+  if(data_valid):
     with st.expander("Пересчёт в IPCE"):
       "## Пересчёт из тока и площади в IPCE"
       st.markdown(r'''Тут производится пересчёт величины тока в эффективность преобразования фотона в электрон, по формуле:  
@@ -72,7 +100,7 @@ if calibration_valid:
         IPCE_sample[current_sample] = (currents_sample[current_sample]/1E6/(int(area)/10000))*1240/currents_sample["Длина волны, нм"]/df["Мощность излучения, мкВт"]*100
       
       st.line_chart(IPCE_sample.dropna(), x='Длина волны, нм')
-      if st.checkbox('Показать таблицу полученных данных'):
+      if st.checkbox('Показать таблицу полученных данных IPCE'):
         IPCE_sample
       
 
