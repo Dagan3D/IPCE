@@ -6,7 +6,7 @@ import plotly.express as px
 from io import StringIO
 import os
 
-def p_diod(x):
+def p_diode(x):
   if x <= 500:
     y = 6.6763288698E-12*x**5 - 1.3543608284E-08*x**4 + 1.0888317706E-05*x**3 - 4.3335323943E-03*x**2 + 8.5399725862E-01*x - 6.6558844853E+01
   elif 500 <= x < 950:
@@ -58,8 +58,8 @@ with st.expander("Калибровочный график"):
   if uploaded_file is not None:
     df = read_file(uploaded_file)
     if df is not None:
-      df["K_diod"] = df['Длина волны, нм'].apply(p_diod)
-      df["Мощность излучения, мкВт"] = df["Сила тока, мкА"]/df["K_diod"]
+      df["K_diode"] = df['Длина волны, нм'].apply(p_diode)
+      df["Мощность излучения, мкВт"] = df["Сила тока, мкА"]/df["K_diode"]
       calibration_valid = True
 
       fig = px.line(df, x="Длина волны, нм", y="Мощность излучения, мкВт")
