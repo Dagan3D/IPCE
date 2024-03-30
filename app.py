@@ -91,13 +91,14 @@ if calibration_valid:
 
       default_area_sample = pd.DataFrame()
       default_area_sample["Образец"] = samples
-      default_area_sample["Площадь образца, см2"] = 7
+      default_area_sample["Площадь образца, см2"] = 7.0
+      default_area_sample = default_area_sample.astype({"Площадь образца, см2" : float})
       area_sample = st.data_editor(default_area_sample)
 
       IPCE_sample["Длина волны, нм"] = currents_sample['Длина волны, нм']
       for current_sample in samples:
         area = area_sample.loc[area_sample["Образец"] == current_sample]["Площадь образца, см2"]
-        IPCE_sample[current_sample] = (currents_sample[current_sample]/1E6/(int(area)/10000))*1240/currents_sample["Длина волны, нм"]/df["Мощность излучения, мкВт"]*100
+        IPCE_sample[current_sample] = (currents_sample[current_sample]/1E6/(float(area)/10000))*1240/currents_sample["Длина волны, нм"]/df["Мощность излучения, мкВт"]*100
       
       st.line_chart(IPCE_sample.dropna(), x='Длина волны, нм')
       if st.checkbox('Показать таблицу полученных данных IPCE'):
