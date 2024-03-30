@@ -93,6 +93,8 @@ if calibration_valid:
       default_area_sample["Образец"] = samples
       default_area_sample["Площадь образца, см2"] = 7.0
       default_area_sample = default_area_sample.astype({"Площадь образца, см2" : float})
+      default_area_sample["Площадь образца, см2"] = 7.0
+      default_area_sample = default_area_sample.astype({"Площадь образца, см2" : float})
       area_sample = st.data_editor(default_area_sample)
 
       IPCE_sample["Длина волны, нм"] = currents_sample['Длина волны, нм']
