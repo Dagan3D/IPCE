@@ -33,6 +33,13 @@ def read_file(uploaded_file) -> pd.DataFrame:
     return None
   
 
+#with st.sidebar:
+#    add_radio = st.radio(
+#        "Choose a shipping method",
+#        ("Standard (5-15 days)", "Express (2-5 days)")
+#    )
+
+
 """## Обработка данных со спектрофотометра для получения зависимости IPCE от длины волны"""
 #%% Калибровочный график
 
