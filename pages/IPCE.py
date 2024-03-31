@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-
 from io import StringIO
 import os
 
@@ -32,14 +31,6 @@ def read_file(uploaded_file) -> pd.DataFrame:
     st.warning(f'Неверный формат файла "{uploaded_file.name}"', icon="⚠️")
     return None
   
-
-#with st.sidebar:
-#    add_radio = st.radio(
-#        "Choose a shipping method",
-#        ("Standard (5-15 days)", "Express (2-5 days)")
-#    )
-
-
 """## Обработка данных со спектрофотометра для получения зависимости IPCE от длины волны"""
 #%% Калибровочный график
 
@@ -103,7 +94,7 @@ if calibration_valid:
         currents_sample
 
 #%% Учёт площади образца
-  if(data_valid):
+  if data_valid:
     with st.expander("Учёт площади образца"):
       "## Пересчёт фототока в плотность фототока для учёта различной площади образца"
       st.markdown(r'''$I_{удельный} =\frac{I_{образца}}{S_{образца}}$''')
