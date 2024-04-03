@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st # type: ignore
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -6,7 +6,6 @@ from io import StringIO
 import os
 
 def read_file(uploaded_file) -> pd.DataFrame:
-
     if os.path.splitext(uploaded_file.name)[1] == ".txt":
         dataframe = pd.read_table(uploaded_file)
         df = pd.DataFrame()
@@ -18,9 +17,7 @@ def read_file(uploaded_file) -> pd.DataFrame:
         df["Длина волны, нм"] = dataframe[dataframe.columns[0]]
         df["Интенсивность"] = dataframe[dataframe.columns[1]] 
     elif os.path.splitext(uploaded_file.name)[1] == ".xls":
-        st.write(uploaded_file.name)
         dataframe = pd.ExcelFile(uploaded_file).parse("Лист1")
-        #st.write(dataframe.columns)
         df = pd.DataFrame()
         df["Длина волны, нм"] = dataframe[dataframe.columns[12]]
         df["Интенсивность"] = dataframe[dataframe.columns[13]]       
