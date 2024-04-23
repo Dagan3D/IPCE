@@ -19,7 +19,11 @@ def read_file(uploaded_file) -> pd.DataFrame:
   try:
     df = pd.read_table(uploaded_file, encoding='cp1251', skiprows=range(25), sep="  ")
     df = df.drop(["Unnamed: 2", "Unnamed: 4"], axis=1)
-    df.columns = [0,"Time", "Potential", "Current"]
+    sample = os.path.splitext(uploaded_file.name)[0]
+    sample_time = sample+"_Time"
+    sample_potential = sample+"_Potential"
+    sample_current = sample+"_Current"
+    df.columns = [0, sample_time, sample_potential, sample_current]
     df = df.drop([0], axis=1).dropna().copy(deep=True)
     return df
   except:
@@ -36,18 +40,22 @@ with st.expander("Загрузка файлов"):
   
   currents_sample = pd.DataFrame()
   samples = []
+  lens = {}
   for uploaded_file in uploaded_files:
     dataframe = read_file(uploaded_file)
     if dataframe is not None:
       samples.append(os.path.splitext(uploaded_file.name)[0])
-      currents_sample[samples[-1] + "_Time"] = dataframe["Time"]
-      currents_sample[samples[-1] + "_Potential"] = dataframe["Potential"]
-      currents_sample[samples[-1] + "_Current"] = dataframe["Current"]
+      lens[samples[-1]] = len(dataframe)
+      lens = pd.Series(lens)
+      max_key = lens.idxmax()
+      print(max_key) 
+      currents_sample = pd.concat([currents_sample, dataframe], axis=1)
       data_valid = True
 
   if(data_valid):
     lin_sam = [sam+"_Current" for sam in samples]
-    fig = px.line(currents_sample.dropna(), x=samples[0] + "_Time", y=lin_sam, labels={'value':"Current"})
+    print(lin_sam)
+    fig = px.line(currents_sample, x=max_key + "_Time", y=lin_sam, labels={'value':"Current"})
     fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
     st.plotly_chart(fig, theme="streamlit", use_container_width=True)
     if st.checkbox('Показать таблицу исходных фототоков'):
