@@ -68,11 +68,11 @@ with st.expander("Загрузка файлов"):
 
       csv = convert_df(currents_sample)
       
-      st.download_button(
-        label="Скачать результат",
-        data=csv,
-        file_name='IPCE.csv',
-        mime='text/csv',
-        type="primary"
-      )
+    st.download_button(
+      label="Скачать результат",
+      data=csv,
+      file_name='IPCE.csv',
+      mime='text/csv',
+      type="primary"
+    )
 
