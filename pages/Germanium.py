@@ -61,12 +61,12 @@ with st.expander("Загрузка файлов"):
     if st.checkbox('Показать таблицу исходных фототоков'):
       currents_sample
 
-      @st.cache_data
-      def convert_df(df):
-        # IMPORTANT: Cache the conversion to prevent computation on every rerun
-        return df.to_csv(sep=";", index=False).encode('cp1251')
+    @st.cache_data
+    def convert_df(df):
+      # IMPORTANT: Cache the conversion to prevent computation on every rerun
+      return df.to_csv(sep=";", index=False).encode('cp1251')
 
-      csv = convert_df(currents_sample)
+    csv = convert_df(currents_sample)
       
     st.download_button(
       label="Скачать результат",
