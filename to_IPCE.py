@@ -31,6 +31,7 @@ def reduction_smooth(df: pd.DataFrame, window: int = 10):
                                  'Current': rolling_mean[::window],
                                  'Wavelength': df['Wavelength'].iloc[::window],
                                  "Shutter":  df['Shutter'].iloc[::window]})
+    df = df.reset_index(drop=True)
     return df_resampled
 
 @st.cache_data
@@ -40,12 +41,13 @@ def time_split(df_: pd.DataFrame, start_wave: int = 300, stop_wave: int = 1100) 
         pattern = np.linspace(0,1,len(df[df.Time == i]))
         df.loc[df.Time == i, "Time"] += pattern
     df = df.loc[df.Wavelength >= start_wave][["Time", "Current", "Wavelength", "Shutter"]].copy(deep=True)
+    df = df.reset_index(drop=True)
     return df
 
 @st.cache_data
 def cut_baseline(df: pd.DataFrame, window: int = 10, measure_in_monowave: int = 800) -> pd.DataFrame:
     df_ = df.copy(deep=True)
-    stl = STL(df_.Current.dropna(), period=int(measure_in_monowave/window))
+    stl = STL(df_.Current.dropna(), period=measure_in_monowave)
     res = stl.fit()
     df_["Photocurrent"] = res.seasonal
     return df_
@@ -61,6 +63,13 @@ def get_photocurrent(df: pd.DataFrame, window:int = 10, left_shift: int = 10, ri
         new_row = pd.DataFrame({"Wavelength": wavelength, "Photocurrent": photocurrent}, index=[len(IPCE_df)])
         IPCE_df = pd.concat([IPCE_df, new_row])
     return IPCE_df
+
+def mean_measure(df):
+  lens = []
+  for wavelength in df["Wavelength"].unique():
+    lens.append(len(df.loc[df.Wavelength == wavelength]))
+  return sum(lens)/len(lens)
+   
 
 def plot_graf():
     pass

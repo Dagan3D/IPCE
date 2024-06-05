@@ -53,28 +53,69 @@ if calibration_valid:
     data_valid = False
     uploaded_files = st.file_uploader("Файлы данных", type = ['txt', 'csv'], accept_multiple_files=True)
     
-    currents_sample = pd.DataFrame()
-    currents_sample['Длина волны, нм'] = df["Wavelength"]
+    
+    df_photocurrent = pd.DataFrame()
     samples = []
     for uploaded_file in uploaded_files:
-      
+            
       dataframe = to_IPCE.read_data(uploaded_file)
-      dataframe = to_IPCE.reduction_smooth(dataframe)
       dataframe = to_IPCE.time_split(dataframe)
-      dataframe = to_IPCE.cut_baseline(dataframe)
-      dataframe = to_IPCE.get_photocurrent(dataframe, window=10)
+      
+      if st.checkbox('Показать таблицу исходный график'):
+        df_photocurrent 
+        fig = px.line(dataframe.dropna(), x="Time", y="Current", labels={'value':"Сила тока, мкА"})
+        fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
+        st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+        dataframe
+
+      
+      dataframe = to_IPCE.reduction_smooth(dataframe)
+      
       if dataframe is not None:
         samples.append(os.path.splitext(uploaded_file.name)[0])
-        currents_sample[samples[-1]] = dataframe["Photocurrent"]
-        
-        data_valid = True
+        if ("Time" not in df_photocurrent.columns) or (len(df_photocurrent["Time"] ) < len(dataframe.Time)):
+          df_photocurrent["Time"] = dataframe.Time
+        df_photocurrent[samples[-1]] = dataframe["Current"]
+        data_valid = True    
 
-    if(data_valid):
-      fig = px.line(currents_sample.dropna(), x="Длина волны, нм", y=samples, labels={'value':"Сила тока, мкА"})
+    if data_valid:
+      fig = px.line(df_photocurrent.dropna(), x="Time", y=samples, labels={'value':"Сила тока, мкА"})
       fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
       st.plotly_chart(fig, theme="streamlit", use_container_width=True)
       if st.checkbox('Показать таблицу исходных фототоков'):
-        currents_sample
+        df_photocurrent    
+
+      
+
+#%% Выгрузка фототоков
+  if data_valid:
+    with st.expander("Извлечение фототоков"):
+      "## Извлечение фототоков из полученных данных"
+
+      measure = to_IPCE.mean_measure(dataframe)
+      measure_in_monowave = st.number_input("Insert a number", step = 1, format="%i", value = round(measure))
+      
+      currents_sample = pd.DataFrame()
+      currents_sample['Длина волны, нм'] = df["Wavelength"]
+      
+      dataframe = to_IPCE.cut_baseline(dataframe, measure_in_monowave=measure_in_monowave)
+      fig = px.line(dataframe.dropna(), x="Time", y="Photocurrent", labels={'value':"Сила тока, мкА"})
+      fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
+      st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+      if st.checkbox('Показать таблицу фототоков без базовой линии'):
+        dataframe
+
+      dataframe = to_IPCE.get_photocurrent(dataframe, window=10)
+      if dataframe is not None:
+        currents_sample[samples[-1]] = dataframe["Photocurrent"]
+        
+        
+        fig = px.line(currents_sample.dropna(), x="Длина волны, нм", y=samples, labels={'value':"Сила тока, мкА"})
+        fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
+        st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+        if st.checkbox('Показать таблицу фототоков'):
+          currents_sample
+  
 
 #%% Учёт площади образца
   if data_valid:
