@@ -62,6 +62,8 @@ def get_photocurrent(df: pd.DataFrame, window:int = 10, left_shift: int = 10, ri
         photocurrent = mono_df.Current.max() - mono_df.Current.min()
         new_row = pd.DataFrame({"Wavelength": wavelength, "Photocurrent": photocurrent}, index=[len(IPCE_df)])
         IPCE_df = pd.concat([IPCE_df, new_row])
+        IPCE_df.to_excel("IPCE.xlsx")
+        print(wavelength, photocurrent)
     return IPCE_df
 
 def mean_measure(df):
