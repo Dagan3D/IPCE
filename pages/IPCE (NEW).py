@@ -1,4 +1,5 @@
 import streamlit as st # type: ignore
+from scipy import interpolate
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -36,6 +37,7 @@ with st.expander("Калибровочный график"):
       df["K_diode"] = df['Wavelength'].apply(to_IPCE.p_diode)
       df["Мощность излучения, мкВт"] = df["Photocurrent"]/df["K_diode"]
       calibration_valid = True
+      linear = interpolate.interp1d(df["Wavelength"], df["Мощность излучения, мкВт"], kind="linear")
 
       fig = px.line(df, x="Wavelength", y="Мощность излучения, мкВт")
       st.plotly_chart(fig, theme="streamlit", use_container_width=True)
@@ -172,8 +174,9 @@ if calibration_valid:
       "## Пересчёт из плотности тока в IPCE"
       st.markdown(r'''Тут производится пересчёт величины тока в эффективность преобразования фотона в электрон, по формуле:  
                   $IPCE =I_{удельный}~*~ \frac{1240}{\lambda}~ / ~ P_{падающая}$''')
-      
-      dataframe["IPCE"] = dataframe["Photocurrent"]*1240/currents_sample["Длина волны, нм"]/df["Мощность излучения, мкВт"]*100
+      dataframe["Мощность излучения, мкВт"] = linear(dataframe["Wavelength"])
+      dataframe["IPCE"] = dataframe["Photocurrent"]*1240/dataframe["Wavelength"]/dataframe["Мощность излучения, мкВт"]*100   
+
 
       if dataframe is not None:                
         fig = px.line(dataframe.dropna(), x="Wavelength", y="IPCE", labels={'value':"IPCE, %"})
