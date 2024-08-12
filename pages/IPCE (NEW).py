@@ -176,7 +176,7 @@ if calibration_valid:
                   $IPCE =I_{удельный}~*~ \frac{1240}{\lambda}~ / ~ P_{падающая}$''')
       dataframe["Мощность излучения, мкВт"] = linear(dataframe["Wavelength"])
       dataframe["IPCE"] = dataframe["Photocurrent"]*1240/dataframe["Wavelength"]/dataframe["Мощность излучения, мкВт"]*100   
-
+      dataframe
 
       if dataframe is not None:                
         fig = px.line(dataframe.dropna(), x="Wavelength", y="IPCE", labels={'value':"IPCE, %"})
