@@ -5,3 +5,4 @@ plotly
 xlrd
 openpyxl
 statsmodels
+scipy
