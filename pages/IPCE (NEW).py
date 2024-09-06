@@ -7,6 +7,11 @@ from io import StringIO
 import os
 import to_IPCE
 
+@st.cache_data
+def convert_df(df):
+  # IMPORTANT: Cache the conversion to prevent computation on every rerun
+  return df.to_csv(sep=";", index=False).encode('cp1251')
+
 """## Обработка данных со спектрофотометра для получения зависимости IPCE от длины волны"""
 #%% Калибровочный график
 
@@ -24,30 +29,65 @@ with st.expander("Калибровочный график"):
           ''')
   
   calibration_valid = False
-  uploaded_file = st.file_uploader("Файл калибровки", type = ['txt', 'csv'])
+  calibration_get = st.selectbox(
+    "У вас есть готовый файл калибровки",
+    ("Получить из файла данных", "Загрузить готовый файл калибровки"),
+  )
   
+  if (calibration_get == "Получить из файла данных"):
+    calibration_valid = False
+    uploaded_file = st.file_uploader("Файл калибровки", type = ['txt', 'csv'])
+    
 
-  if uploaded_file is not None:
-    df = to_IPCE.read_data(uploaded_file)
-    df = to_IPCE.reduction_smooth(df, window=1)
-    df = to_IPCE.time_split(df, start_wave=280)
-    df["Photocurrent"] = df["Current"]
-    df = to_IPCE.get_photocurrent(df, window=10) 
-    if df is not None:
-      df["K_diode"] = df['Wavelength'].apply(to_IPCE.p_diode)
-      df["Мощность излучения, мкВт"] = df["Photocurrent"]/df["K_diode"]
-      calibration_valid = True
-      linear = interpolate.interp1d(df["Wavelength"], df["Мощность излучения, мкВт"], kind="linear")
+    if uploaded_file is not None:
+      df = to_IPCE.read_data(uploaded_file)
+      df = to_IPCE.reduction_smooth(df, window=1)
+      df = to_IPCE.time_split(df, start_wave=280)
+      df["Photocurrent"] = df["Current"]
+      df = to_IPCE.get_photocurrent(df, window=10) 
+      if df is not None:
+        df["K_diode"] = df['Wavelength'].apply(to_IPCE.p_diode)
+        df["Мощность излучения, мкВт"] = df["Photocurrent"]/df["K_diode"]
+        calibration_valid = True
+        linear = interpolate.interp1d(df["Wavelength"], df["Мощность излучения, мкВт"], kind="linear")
+        fig = px.line(df, x="Wavelength", y="Мощность излучения, мкВт")
+        st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+        csv = convert_df(df)
+        st.download_button(
+          label="Скачать файл калибровки",
+          data=csv,
+          file_name='Calibration.csv',
+          mime='text/csv',
+          type="primary"
+        )
+        if st.checkbox('Показать таблицу данных калибровки'):
+          df_table = pd.DataFrame([])
+          df_table["Длинна волны, нм"] = df["Wavelength"]
+          df_table["Фототок, мкА"] = df["Photocurrent"]*1e6
+          df_table["K диода"] = df["K_diode"]
+          df_table["Мощность излучения, мкВт"] = df["Мощность излучения, мкВт"]*1e6
+          df_table
+        
 
-      fig = px.line(df, x="Wavelength", y="Мощность излучения, мкВт")
-      st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-      if st.checkbox('Показать таблицу данных калибровки'):
-        df_table = pd.DataFrame([])
-        df_table["Длинна волны, нм"] = df["Wavelength"]
-        df_table["Фототок, мкА"] = df["Photocurrent"]*1e6
-        df_table["K диода"] = df["K_diode"]
-        df_table["Мощность излучения, мкВт"] = df["Мощность излучения, мкВт"]*1e6
-        df_table
+
+  else:
+      calibration_valid = False
+      uploaded_file = st.file_uploader("Готовый файл калибровки", type = ['txt', 'csv'])
+      if uploaded_file is not None:
+        df = pd.read_table(uploaded_file, sep=';', encoding="cp1251")
+        if df is not None:
+          calibration_valid = True
+          df
+          linear = interpolate.interp1d(df["Wavelength"], df["Мощность излучения, мкВт"], kind="linear")
+          fig = px.line(df, x="Wavelength", y="Мощность излучения, мкВт")
+          st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+          if st.checkbox('Показать таблицу данных калибровки'):
+            df_table = pd.DataFrame([])
+            df_table["Длинна волны, нм"] = df["Wavelength"]
+            df_table["Фототок, мкА"] = df["Photocurrent"]*1e6
+            df_table["K диода"] = df["K_diode"]
+            df_table["Мощность излучения, мкВт"] = df["Мощность излучения, мкВт"]*1e6
+            df_table
 
 #%%Файлы данных
 if calibration_valid:
@@ -143,7 +183,7 @@ if calibration_valid:
       # area_sample = area_sample.astype({"Площадь образца, см^2" : float})
       # area_sample = st.data_editor(area_sample)
 
-      area_sample =st.number_input("Площадь образца", step = 0.1, format="%f", value = 7.0)
+      area_sample =st.number_input("Площадь образца", step = 0.1, format="%f", value = 4.5)
       
       dataframe["Photocurrent"] = dataframe["Photocurrent"]/(float(area_sample))
       if dataframe is not None:
@@ -195,11 +235,6 @@ if calibration_valid:
       # st.plotly_chart(fig, theme="streamlit", use_container_width=True)
       # if st.checkbox('Показать таблицу IPCE'):
       #   IPCE_sample
-
-      @st.cache_data
-      def convert_df(df):
-        # IMPORTANT: Cache the conversion to prevent computation on every rerun
-        return df.to_csv(sep=";", index=False).encode('cp1251')
 
       csv = convert_df(dataframe)
       
