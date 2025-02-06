@@ -195,6 +195,11 @@ if calibration_valid:
         if st.checkbox('Показать таблицу фототоков с учётом площади'):
           dataframe
 
+    calibration_get = st.selectbox(
+        "У вас есть готовый файл калибровки",
+        ("Получить из файла данных", "Загрузить готовый файл калибровки"),
+    )
+
       # density_current = pd.DataFrame()
       # density_current['Длина волны, нм'] = currents_sample['Длина волны, нм']
       
