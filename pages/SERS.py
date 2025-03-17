@@ -58,7 +58,7 @@ if len(samples) > 0:
             st.dataframe(peak_meas_samples[selection])
             for i in range(len(peaks_points)):
                 st.text(
-                    f"Пик {i+1}: {peak_meas_samples[selection][f"Y{i+1}"].count()} / {peak_meas_samples[selection].shape[0]}")
+                    f"Пик {i+1}: {peak_meas_samples[selection][f'Y{i+1}'].count()} / {peak_meas_samples[selection].shape[0]}")
 
     res_samples_dict = {}
     for peak in range(len(peaks_points)):
