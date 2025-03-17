@@ -46,7 +46,7 @@ def baseline(df, lam=1e7, itermax=20):
     df_line = df.copy()
     for i in range(df.shape[1]):
         X = df[df.columns[i]]
-        als_res = als.arpls(X.values, lam=1e7, itermax=20)
+        als_res = als.als(X.values, lam=1e7, itermax=20)
         df_baseline[df.columns[i]] = als_res
         res = X.values - als_res
         df_line[df.columns[i]] = res
