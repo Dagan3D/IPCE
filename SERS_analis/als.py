@@ -72,7 +72,8 @@ def als(y, lam=1e6, p=0.1, itermax=10):
     L = len(y)
 #  D = sparse.csc_matrix(np.diff(np.eye(L), 2))
     D = sparse.eye(L, format='csc')
-    D = D[1:] - D[:-1]  # numpy.diff( ,2) does not work with sparse matrix. This is a workaround.
+    # numpy.diff( ,2) does not work with sparse matrix. This is a workaround.
+    D = D[1:] - D[:-1]
     D = D[1:] - D[:-1]
     D = D.T
     w = np.ones(L)
@@ -82,7 +83,6 @@ def als(y, lam=1e6, p=0.1, itermax=10):
         z = spsolve(Z, w * y)
         w = p * (y > z) + (1 - p) * (y < z)
     return z
-
 
 
 def arpls(y, lam=1e4, ratio=0.05, itermax=100):
@@ -125,7 +125,8 @@ def arpls(y, lam=1e4, ratio=0.05, itermax=100):
     N = len(y)
 #  D = sparse.csc_matrix(np.diff(np.eye(N), 2))
     D = sparse.eye(N, format='csc')
-    D = D[1:] - D[:-1]  # numpy.diff( ,2) does not work with sparse matrix. This is a workaround.
+    # numpy.diff( ,2) does not work with sparse matrix. This is a workaround.
+    D = D[1:] - D[:-1]
     D = D[1:] - D[:-1]
 
     H = lam * D.T * D
@@ -144,8 +145,6 @@ def arpls(y, lam=1e4, ratio=0.05, itermax=100):
             break
         w = wt
     return z
-
-
 
 
 def WhittakerSmooth(x, w, lam, differences=1):
@@ -172,14 +171,13 @@ def WhittakerSmooth(x, w, lam, differences=1):
 #    D = csc_matrix(np.diff(np.eye(m), differences))
     D = sparse.eye(m, format='csc')
     for i in range(differences):
-        D = D[1:] - D[:-1]  # numpy.diff() does not work with sparse matrix. This is a workaround.
+        # numpy.diff() does not work with sparse matrix. This is a workaround.
+        D = D[1:] - D[:-1]
     W = sparse.diags(w, 0, shape=(m, m))
     A = sparse.csc_matrix(W + (lam * D.T * D))
     B = sparse.csc_matrix(W * X.T)
     background = spsolve(A, B)
     return np.array(background)
-
-
 
 
 def airpls(x, lam=100, porder=1, itermax=100):
@@ -228,8 +226,8 @@ def airpls(x, lam=100, porder=1, itermax=100):
         z = WhittakerSmooth(x, w, lam, porder)
         d = x - z
         dssn = np.abs(d[d < 0].sum())
-        if(dssn < 0.001 * (abs(x)).sum() or i == itermax):
-            if(i == itermax):
+        if (dssn < 0.001 * (abs(x)).sum() or i == itermax):
+            if (i == itermax):
                 print('airpls: max iteration reached!')
             break
         w[d >= 0] = 0  # d>0 means that this point is part of a peak,
@@ -238,8 +236,6 @@ def airpls(x, lam=100, porder=1, itermax=100):
         w[0] = np.exp(i * (d[d < 0]).max() / dssn)
         w[-1] = w[0]
     return z
-
-
 
 
 if __name__ == '__main__':
