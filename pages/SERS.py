@@ -8,16 +8,21 @@ import SERS_analis.SERS_find_pick as sers
 
 st.sidebar.header("Параметры обработки")
 peaks_points_list = st.sidebar.text_input(
-    "Возможные положения пиков", "1170-1188, 1360-1378, 1610-1625").replace(' ', '').split(",")
+    "Возможные положения пиков",
+    "1170-1188, 1360-1378, 1610-1625"
+).replace(' ', '').split(",")
+peaks_points = []
+
+for peaks_point in peaks_points_list:
+    peak1 = int(peaks_point.split('-')[0])
+    peak2 = int(peaks_point.split('-')[1])
+    peaks_points.append((peak1, peak2))
+print(peaks_points)
 
 st.title("SERS analis")
 lam = 10**st.sidebar.slider("Параметр сглаживания", 1, 15, 7)
 itermax = st.sidebar.slider(
     "Параметр максимального числа итераций сглаживания", 1, 100, 20)
-
-peaks_points = [tuple(x.split("-")) for x in peaks_points_list]
-print(peaks_points)
-
 
 samples_filename = st.file_uploader("Загрузите файлы спектров (.txt, .csv, .xls, .pts)",
                                     type=['txt', 'csv', 'xls', 'pts'], accept_multiple_files=True)

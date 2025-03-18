@@ -62,13 +62,20 @@ def get_inflection_points(df, peaks_points):
                           f"Point {i+1}" for i in range(df.shape[1])])
 
     for i in range(df.shape[1]):
-        X = df.columns[i]
         peak_res = []
-        for peak_point in peaks_points:
-            x1, y1 = find_inflection_point(df[X].loc[1170: 1188])
+        for j, peak_point in enumerate(peaks_points):
+            X = df[df.columns[i]]
+            if j == 0:
+                X.loc[1170: 1188].to_csv("test.csv")
+
+            x1, y1 = find_inflection_point(
+                X.loc[peak_point[0]: peak_point[1]])
+
             peak_res.append(x1)
             peak_res.append(y1)
+
         res_df.loc[f"Point {i+1}"] = peak_res
+        print("\n")
     return res_df
 
 
