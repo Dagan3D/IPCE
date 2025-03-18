@@ -84,7 +84,7 @@ if len(samples) > 0:
             res_mean_std[sample] = [res_samples_dict[peak+1][sample].mean(),
                                     res_samples_dict[peak+1][sample].median(),
                                     res_samples_dict[peak+1][sample].std()]
-
+        res_mean_std["mean"] = res_mean_std.mean(axis=1)
         st.dataframe(res_mean_std)
 
     with st.expander(f"Вывод результаов по пику"):
