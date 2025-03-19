@@ -66,6 +66,7 @@ if len(samples) > 0:
                     f"Пик {i+1}: {peak_meas_samples[selection][f'Y{i+1}'].count()} / {peak_meas_samples[selection].shape[0]}")
 
     res_samples_dict = {}
+    res_mean_peak_dict = pd.DataFrame()
     for peak in range(len(peaks_points)):
         res_samples = pd.DataFrame()
         for peak_meas_sample in peak_meas_samples.keys():
@@ -84,7 +85,10 @@ if len(samples) > 0:
             res_mean_std[sample] = [res_samples_dict[peak+1][sample].mean(),
                                     res_samples_dict[peak+1][sample].median(),
                                     res_samples_dict[peak+1][sample].std()]
+        print(res_mean_std.T["mean"])
+        res_mean_peak_dict[f"Peak {peak+1}"] = res_mean_std.T["mean"]
         res_mean_std["mean"] = res_mean_std.mean(axis=1)
+
         st.dataframe(res_mean_std)
 
     with st.expander(f"Вывод результаов по пику"):
@@ -93,3 +97,21 @@ if len(samples) > 0:
                              selection_mode="single")
         if selection is not None:
             st.dataframe(res_samples_dict[selection])
+
+    with st.expander(f"Вывод средних по пику"):
+        st.dataframe(res_mean_peak_dict)
+
+        @st.cache_data
+        def convert_df(df):
+            # IMPORTANT: Cache the conversion to prevent computation on every rerun
+            return df.to_csv(sep=";").encode('cp1251')
+
+        csv = convert_df(res_mean_peak_dict)
+
+        st.download_button(
+            label="Скачать результат",
+            data=csv,
+            file_name='SERS_map.csv',
+            mime='text/csv',
+            type="primary"
+        )
