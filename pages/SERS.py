@@ -17,7 +17,6 @@ for peaks_point in peaks_points_list:
     peak1 = int(peaks_point.split('-')[0])
     peak2 = int(peaks_point.split('-')[1])
     peaks_points.append((peak1, peak2))
-print(peaks_points)
 
 st.title("SERS analis")
 lam = 10**st.sidebar.slider("Параметр сглаживания", 1, 15, 7)
@@ -45,7 +44,6 @@ if len(samples) > 0:
         if selection is not None:
             fig = px.line(samples[selection])
             for peak in peaks_points:
-                print(peak)
                 fig.add_shape(
                     type="rect",
                     x0=peak[0],  # Начало области по X
@@ -85,7 +83,6 @@ if len(samples) > 0:
             res_mean_std[sample] = [res_samples_dict[peak+1][sample].mean(),
                                     res_samples_dict[peak+1][sample].median(),
                                     res_samples_dict[peak+1][sample].std()]
-        print(res_mean_std.T["mean"])
         res_mean_peak_dict[f"Peak {peak+1}"] = res_mean_std.T["mean"]
         res_mean_std["mean"] = res_mean_std.mean(axis=1)
 
@@ -99,19 +96,32 @@ if len(samples) > 0:
             st.dataframe(res_samples_dict[selection])
 
     with st.expander(f"Вывод средних по пику"):
-        st.dataframe(res_mean_peak_dict)
+        df = res_mean_peak_dict.copy()
+        extracted = df.index.str.extract(
+            r'зона (?P<Зона>\d+) - т(?P<Точка>\d+) - мап\.txt')
+        extracted.index = df.index
+        df["Зона"] = extracted.astype(int)["Зона"]
+        df["Точка"] = extracted.astype(int)["Точка"]
+        print(df)
 
-        @st.cache_data
-        def convert_df(df):
-            # IMPORTANT: Cache the conversion to prevent computation on every rerun
-            return df.to_csv(sep=";").encode('cp1251')
+        # Создание словаря для хранения DataFrame по пикам
+        peak_dfs = {}
+        for i, peak in enumerate(res_mean_peak_dict.columns):
+            @st.cache_data
+            def convert_df(df):
+                return df.to_csv(sep=";").encode('cp1251')
 
-        csv = convert_df(res_mean_peak_dict)
-
-        st.download_button(
-            label="Скачать результат",
-            data=csv,
-            file_name='SERS_map.csv',
-            mime='text/csv',
-            type="primary"
-        )
+            # Сводная таблица: зоны -> столбцы, время -> индексы
+            pivot_df = df.pivot(index='Точка', columns='Зона', values=peak)
+            pivot_df.columns = [f'Зона {col}' for col in pivot_df.columns]
+            peak_dfs[peak] = pivot_df
+            st.header(f"Пик {i+1}")
+            st.dataframe(pivot_df)
+            csv = convert_df(pivot_df)
+            st.download_button(
+                label=f"Скачать результаты по пику {i+1}",
+                data=csv,
+                file_name='SERS_map.csv',
+                mime='text/csv',
+                type="primary"
+            )
