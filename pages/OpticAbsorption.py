@@ -39,9 +39,20 @@ def read_file(uploaded_file) -> pd.DataFrame:
             df["Интенсивность"] = dataframe[dataframe.columns[1]]
             df = df.astype(float)
 
+        elif os.path.splitext(uploaded_file.name)[1] == ".sf":
+            dataframe = pd.read_table(r'C:\Users\butma\Documents\Python\IPCE\Данные\L1 10-6.sf',
+                                    encoding="cp1251", sep="             ", engine="python",
+                                    skiprows=17, decimal='.').dropna()
+            df = pd.DataFrame()
+            dataframe = dataframe.reset_index(drop=False)
+            df["Длина волны, нм"] = dataframe["index"].convert_dtypes()
+            df["Интенсивность"] = dataframe[dataframe.columns[1]]
+            df = df.astype(float)
+
         else:
             raise ValueError("Неподдерживаемый формат файла.")
         return df
+    
     except Exception as e:
         st.error(f"Ошибка при чтении файла {uploaded_file.name}: {e}")
         return None
@@ -163,8 +174,8 @@ def make_non_negative(df: pd.DataFrame):
 
 st.title("Анализ поглощения")
 
-uploaded_files = st.file_uploader("Загрузите файлы спектров (.txt, .csv, .xls, .pts)", type=[
-                                  'txt', 'csv', 'xls', 'pts'], accept_multiple_files=True)
+uploaded_files = st.file_uploader("Загрузите файлы спектров (.txt, .csv, .xls, .pts, .sf)", type=[
+                                  'txt', 'csv', 'xls', 'pts', 'sf'], accept_multiple_files=True)
 
 if not uploaded_files:
     st.stop()
