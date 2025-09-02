@@ -32,12 +32,13 @@ def read_file(uploaded_file) -> pd.DataFrame:
         df = df.astype(float)
     elif os.path.splitext(uploaded_file.name)[1] == ".sf":
         dataframe = pd.read_table(uploaded_file,
-                                  encoding="cp1251", sep="             ", engine="python",
-                                  skiprows=17, decimal='.').dropna()
+                                  encoding="cp1251", header=None, sep=r"\s+", engine="python",
+                                  skiprows=18, decimal='.', skipfooter=4).dropna()
         df = pd.DataFrame()
+        print(dataframe)
         dataframe = dataframe.reset_index(drop=False)
-        df["Длина волны, нм"] = dataframe["index"].convert_dtypes()
-        df["Интенсивность"] = dataframe[dataframe.columns[1]]
+        df["Длина волны, нм"] = dataframe[dataframe.columns[1]].convert_dtypes()
+        df["Интенсивность"] = dataframe[dataframe.columns[2]]
         df = df.astype(float)
     else:
         raise Exception()

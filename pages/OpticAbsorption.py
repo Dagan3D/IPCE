@@ -41,18 +41,19 @@ def read_file(uploaded_file) -> pd.DataFrame:
 
         elif os.path.splitext(uploaded_file.name)[1] == ".sf":
             dataframe = pd.read_table(uploaded_file,
-                                    encoding="cp1251", sep="             ", engine="python",
-                                    skiprows=17, decimal='.').dropna()
+                                      encoding="cp1251", header=None, sep=r"\s+", engine="python",
+                                      skiprows=18, decimal='.', skipfooter=4).dropna()
             df = pd.DataFrame()
+            print(dataframe)
             dataframe = dataframe.reset_index(drop=False)
-            df["Длина волны, нм"] = dataframe["index"].convert_dtypes()
-            df["Интенсивность"] = dataframe[dataframe.columns[1]]
+            df["Длина волны, нм"] = dataframe[dataframe.columns[1]].convert_dtypes()
+            df["Интенсивность"] = dataframe[dataframe.columns[2]]
             df = df.astype(float)
 
         else:
             raise ValueError("Неподдерживаемый формат файла.")
         return df
-    
+
     except Exception as e:
         st.error(f"Ошибка при чтении файла {uploaded_file.name}: {e}")
         return None
@@ -185,7 +186,9 @@ samples = []
 concentrations_dict = {}
 
 for uploaded_file in uploaded_files:
+    print(f"{uploaded_file=}")
     df = read_file(uploaded_file)
+    print(f"{df=}")
     if df is not None:
         file_name = os.path.splitext(uploaded_file.name)[0]
         try:
@@ -242,6 +245,7 @@ for file_name, df in data.items():
         data[file_name] = zero_correction(data[file_name])
 
 combined_df = pd.DataFrame()
+print(f"{data=}")
 combined_df["Длина волны, нм"] = data[list(data.keys())[0]]["Длина волны, нм"]
 for file_name, df in data.items():
     combined_df = combined_df.merge(
