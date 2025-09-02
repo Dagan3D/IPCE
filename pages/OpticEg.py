@@ -31,7 +31,7 @@ def read_file(uploaded_file) -> pd.DataFrame:
         df["Интенсивность"] = dataframe[dataframe.columns[1]]
         df = df.astype(float)
     elif os.path.splitext(uploaded_file.name)[1] == ".sf":
-        dataframe = pd.read_table(r'C:\Users\butma\Documents\Python\IPCE\Данные\L1 10-6.sf',
+        dataframe = pd.read_table(uploaded_file,
                                   encoding="cp1251", sep="             ", engine="python",
                                   skiprows=17, decimal='.').dropna()
         df = pd.DataFrame()
