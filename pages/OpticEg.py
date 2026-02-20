@@ -145,15 +145,23 @@ def fit_linear_region(hv, y, center_idx, window_size=10):
 def data_correction(df, correction_list=[339, 340, 387, 388, 389, 390, 453, 565], smooth=4):
     """Исправление скачка на спектрофотометре"""
     nm = df["Длина волны, нм"]
+    # Сначала применяем все коррекции скачков
     for corr in correction_list:
         for col in df.columns:
+            if col == "Длина волны, нм":
+                continue
             # Проверяем, что точки коррекции есть в данных
             if corr in nm.values and (corr + 1) in nm.values:
                 diff_val = df.loc[nm == corr+1, col].values - df.loc[nm == corr, col].values
                 if len(diff_val) > 0:
                     df.loc[nm > corr, col] = df.loc[nm > corr, col] - diff_val[0]
-            if smooth > 0:
-                df[col] = df[col].ewm(smooth).mean().dropna()
+    
+    # Применяем сглаживание один раз после всех коррекций
+    if smooth > 0:
+        for col in df.columns:
+            if col == "Длина волны, нм":
+                continue
+            df[col] = df[col].ewm(smooth).mean()
     return df
 
 
@@ -279,6 +287,9 @@ else:
                     # Расчёт R = I/I₀
                     I_reference = df_reference["I₀"].values
                     R_relative = I_sample / I_reference
+                    
+                    # Заменяем inf и -inf на NaN для корректного отображения графика
+                    R_relative = np.where(np.isinf(R_relative), np.nan, R_relative)
                     
                     currents_sample['Длина волны, нм'] = wavelengths
                     currents_sample[sample_name] = R_relative
