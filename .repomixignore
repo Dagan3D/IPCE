@@ -1,0 +1,24 @@
+
+# Repomix outputs
+repomix-output.xml
+repomix-output.txt
+repomix-output.md
+
+# Python environment and cache
+.venv/
+__pycache__/
+*.pyc
+.python-version
+
+# Version control
+.git/
+.gitignore
+
+# Devcontainer and lock files
+.devcontainer/
+uv.lock
+pyproject.toml
+
+# Large data/images (optional, if you don't want to send them to LLM)
+*.png
+*.ipynb
