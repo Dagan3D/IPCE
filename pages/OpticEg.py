@@ -6,8 +6,9 @@ import plotly.graph_objects as go
 from io import StringIO
 import os
 from scipy import interpolate
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, savgol_filter
 from scipy.stats import linregress
+from SERS_analis.als import WhittakerSmooth
 
 
 def read_file(uploaded_file) -> pd.DataFrame:
@@ -142,9 +143,89 @@ def fit_linear_region(hv, y, center_idx, window_size=10):
     }
 
 
-def data_correction(df, correction_list=[339, 340, 387, 388, 389, 390, 420, 453, 565], smooth=4):
-    """Исправление скачка на спектрофотометре"""
+def apply_smoothing(y, method='savgol', **kwargs):
+    """
+    Применяет сглаживание к данным спектра.
+    
+    Parameters:
+    -----------
+    y : array-like
+        Значения интенсивности
+    method : str
+        Метод сглаживания:
+        - 'savgol': Savitzky-Golay (рекомендуется для спектров)
+        - 'whittaker': Сглаживание Уиттекера
+        - 'hanning': Скользящее среднее с окном Хэннинга
+        - 'ewm': Экспоненциальное взвешенное среднее (старый метод)
+    **kwargs : dict
+        Параметры для конкретного метода
+    
+    Returns:
+    --------
+    array: Сглаженные данные
+    """
+    y = np.asarray(y)
+    
+    if method == 'savgol':
+        # Savitzky-Golay - золотой стандарт для спектроскопии
+        window_length = kwargs.get('window_length', 11)
+        polyorder = kwargs.get('polyorder', 3)
+        # Окно должно быть нечётным и меньше длины данных
+        if window_length % 2 == 0:
+            window_length += 1
+        if window_length > len(y):
+            window_length = len(y) if len(y) % 2 == 1 else len(y) - 1
+        if window_length < 3:
+            return y
+        return savgol_filter(y, window_length, polyorder)
+    
+    elif method == 'whittaker':
+        # Сглаживание Уиттекера - современный метод
+        lam = kwargs.get('lam', 1e4)
+        w = np.ones(len(y))
+        return WhittakerSmooth(y, w, lam)
+    
+    elif method == 'hanning':
+        # Скользящее среднее с окном Хэннинга - симметричное
+        window_size = kwargs.get('window_size', 11)
+        if window_size > len(y):
+            window_size = len(y)
+        if window_size < 3:
+            return y
+        window = np.hanning(window_size)
+        window = window / window.sum()
+        # Используем same для сохранения длины, с pad для краёв
+        return np.convolve(y, window, mode='same')
+    
+    elif method == 'ewm':
+        # Экспоненциальное взвешенное среднее (старый метод)
+        alpha = kwargs.get('alpha', 0.3)
+        return pd.Series(y).ewm(alpha=alpha, adjust=False).mean().values
+    
+    else:
+        return y
+
+
+def data_correction(df, correction_list=[339, 340, 387, 388, 389, 390, 420, 453, 565], 
+                    smooth=False, smooth_method='savgol', smooth_params=None):
+    """
+    Исправление скачка на спектрофотометре и сглаживание.
+    
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        DataFrame с данными спектра
+    correction_list : list
+        Список точек коррекции скачков
+    smooth : bool
+        Применять ли сглаживание
+    smooth_method : str
+        Метод сглаживания ('savgol', 'whittaker', 'hanning', 'ewm')
+    smooth_params : dict
+        Параметры сглаживания
+    """
     nm = df["Длина волны, нм"]
+    
     # Сначала применяем все коррекции скачков
     for corr in correction_list:
         for col in df.columns:
@@ -157,11 +238,12 @@ def data_correction(df, correction_list=[339, 340, 387, 388, 389, 390, 420, 453,
                     df.loc[nm > corr, col] = df.loc[nm > corr, col] - diff_val[0]
     
     # Применяем сглаживание один раз после всех коррекций
-    if smooth > 0:
+    if smooth and smooth_params is not None:
         for col in df.columns:
             if col == "Длина волны, нм":
                 continue
-            df[col] = df[col].ewm(smooth).mean()
+            df[col] = apply_smoothing(df[col].values, method=smooth_method, **smooth_params)
+    
     return df
 
 
@@ -172,11 +254,76 @@ with st.sidebar:
     st.header("Настройки обработки данных")
     
     # Настройки сглаживания
-    smooth = st.checkbox("Сглаживание", value=False, help="Применить экспоненциальное сглаживание к данным")
+    smooth = st.checkbox("Сглаживание", value=False, help="Применить сглаживание к данным")
+    smooth_method = 'savgol'
+    smooth_params = None
+    
     if smooth:
-        smooth_force = st.slider("Сила сглаживания", 1, 20, 4, help="Чем больше значение, тем сильнее сглаживание")
-    else:
-        smooth_force = 0
+        st.subheader("Метод сглаживания")
+        smooth_method = st.selectbox(
+            "Выберите метод",
+            options=['savgol', 'whittaker', 'hanning', 'ewm'],
+            format_func=lambda x: {
+                'savgol': 'Savitzky-Golay (рекомендуется)',
+                'whittaker': 'Уиттекера',
+                'hanning': 'Скользящее среднее (Хэннинг)',
+                'ewm': 'Экспоненциальное (старое)'
+            }.get(x, x),
+            key="smooth_method_selector",
+            help="Savitzky-Golay — лучший выбор для сохранения формы спектра и корректного расчёта Eg"
+        )
+        
+        # Параметры для Savitzky-Golay
+        if smooth_method == 'savgol':
+            st.caption("Параметры Savitzky-Golay:")
+            window_length = st.slider(
+                "Размер окна", 
+                min_value=3, max_value=51, value=11, step=2,
+                help="Размер окна сглаживания (нечётное число). Чем больше — тем сильнее сглаживание",
+                key="savgol_window"
+            )
+            polyorder = st.slider(
+                "Порядок полинома", 
+                min_value=1, max_value=min(5, window_length-1), value=3,
+                help="Порядок аппроксимирующего полинома. Обычно 2-3",
+                key="savgol_poly"
+            )
+            smooth_params = {'window_length': window_length, 'polyorder': polyorder}
+        
+        # Параметры для Уиттекера
+        elif smooth_method == 'whittaker':
+            st.caption("Параметры сглаживания Уиттекера:")
+            lam = st.select_slider(
+                "Параметр λ (сила сглаживания)",
+                options=[1e2, 1e3, 1e4, 1e5, 1e6, 1e7],
+                value=1e4,
+                format_func=lambda x: f"10^{int(np.log10(x))}",
+                help="Чем больше λ, тем сильнее сглаживание",
+                key="whittaker_lam"
+            )
+            smooth_params = {'lam': lam}
+        
+        # Параметры для Хэннинга
+        elif smooth_method == 'hanning':
+            st.caption("Параметры скользящего среднего:")
+            window_size = st.slider(
+                "Размер окна", 
+                min_value=3, max_value=51, value=11, step=2,
+                help="Размер окна сглаживания",
+                key="hanning_window"
+            )
+            smooth_params = {'window_size': window_size}
+        
+        # Параметры для EWM (старый метод)
+        elif smooth_method == 'ewm':
+            st.caption("Параметры экспоненциального сглаживания:")
+            alpha = st.slider(
+                "Коэффициент α", 
+                min_value=0.05, max_value=0.95, value=0.3, step=0.05,
+                help="Чем больше α, тем меньше сглаживание. Не рекомендуется для расчёта Eg",
+                key="ewm_alpha"
+            )
+            smooth_params = {'alpha': alpha}
     
     st.divider()
     
@@ -255,7 +402,9 @@ if load_mode == "Спектры (%)":
         for uploaded_file in uploaded_files:
             dataframe = read_file(uploaded_file)
             # Применяем коррекцию из sidebar
-            dataframe = data_correction(dataframe, correction_list=correction_list, smooth=smooth_force)
+            dataframe = data_correction(dataframe, correction_list=correction_list, 
+                                        smooth=smooth, smooth_method=smooth_method, 
+                                        smooth_params=smooth_params)
             if dataframe is not None:
                 samples.append(os.path.splitext(uploaded_file.name)[0])
                 currents_sample['Длина волны, нм'] = dataframe["Длина волны, нм"]
@@ -287,7 +436,9 @@ else:
         if reference_file is not None:
             df_reference = read_file(reference_file)
             # Применяем коррекцию из sidebar к эталону
-            df_reference = data_correction(df_reference, correction_list=correction_list, smooth=smooth_force)
+            df_reference = data_correction(df_reference, correction_list=correction_list, 
+                                           smooth=smooth, smooth_method=smooth_method, 
+                                           smooth_params=smooth_params)
             df_reference = df_reference.rename(columns={"Интенсивность": "I₀"})
             st.success(f"Загружен эталон: {reference_file.name}")
             
@@ -316,7 +467,9 @@ else:
             for uploaded_file in uploaded_files:
                 df_sample = read_file(uploaded_file)
                 # Применяем коррекцию из sidebar
-                df_sample = data_correction(df_sample, correction_list=correction_list, smooth=smooth_force)
+                df_sample = data_correction(df_sample, correction_list=correction_list, 
+                                            smooth=smooth, smooth_method=smooth_method, 
+                                            smooth_params=smooth_params)
                 
                 if df_sample is not None:
                     sample_name = os.path.splitext(uploaded_file.name)[0]
