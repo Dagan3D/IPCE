@@ -142,7 +142,7 @@ def fit_linear_region(hv, y, center_idx, window_size=10):
     }
 
 
-def data_correction(df, correction_list=[339, 340, 387, 388, 389, 390, 453, 565], smooth=4):
+def data_correction(df, correction_list=[339, 340, 387, 388, 389, 390, 420, 453, 565], smooth=4):
     """Исправление скачка на спектрофотометре"""
     nm = df["Длина волны, нм"]
     # Сначала применяем все коррекции скачков
@@ -166,6 +166,66 @@ def data_correction(df, correction_list=[339, 340, 387, 388, 389, 390, 453, 565]
 
 
 "### Эта страница поможет вам собрать множество файлов c графиком оптического поглощения в один и пересчитать полученные значения в оптическую ширину запрещенной зоны."
+
+# Боковая панель с настройками сглаживания и коррекции скачков
+with st.sidebar:
+    st.header("Настройки обработки данных")
+    
+    # Настройки сглаживания
+    smooth = st.checkbox("Сглаживание", value=False, help="Применить экспоненциальное сглаживание к данным")
+    if smooth:
+        smooth_force = st.slider("Сила сглаживания", 1, 20, 4, help="Чем больше значение, тем сильнее сглаживание")
+    else:
+        smooth_force = 0
+    
+    st.divider()
+    
+    # Настройки коррекции скачков
+    st.subheader("Коррекция скачков")
+    enable_jump_correction = st.checkbox("Убирать скачки", value=True, 
+                                         help="Коррекция скачков на спектрофотометре")
+    
+    correction_list = []
+    if enable_jump_correction:
+        st.caption("Точки коррекции (длины волн в нм):")
+        default_corrections = "339, 340, 387, 388, 389, 390, 420, 453, 565"
+        correction_input = st.text_input(
+            "Точки коррекции", 
+            value=default_corrections,
+            help="Введите длины волн через запятую, где нужно корректировать скачки",
+            key="correction_points_input"
+        )
+        # Парсинг и валидация ввода
+        try:
+            parsed_values = []
+            for x in correction_input.split(','):
+                x = x.strip()
+                if x:
+                    val = int(x)
+                    if val < 0:
+                        st.error(f"Ошибка: длина волны не может быть отрицательной ({val})")
+                        raise ValueError("Отрицательное значение")
+                    parsed_values.append(val)
+            correction_list = parsed_values
+            if correction_list:
+                st.success(f"Точек коррекции: {len(correction_list)}")
+        except ValueError as e:
+            st.error("Ошибка: введите целые числа через запятую (например: 339, 340, 387)")
+            correction_list = [339, 340, 387, 388, 389, 390, 420, 453, 565]
+    
+    st.divider()
+    
+    # Настройки диапазона энергии (eV)
+    st.subheader("Диапазон энергии (eV)")
+    hv_range = st.slider(
+        "Выберите диапазон энергии (eV)",
+        min_value=0.1,
+        max_value=10.0,
+        value=(2.5, 5.0),
+        step=0.1,
+        key="hv_range_slider",
+        help="Обрезает данные для расчёта. Полезно для удаления шумных участков спектра."
+    )
 
 # Выбор режима загрузки
 load_mode = st.radio(
@@ -191,17 +251,11 @@ if load_mode == "Спектры (%)":
 
         uploaded_files = st.file_uploader("Файлы данных", type=[
                                           'txt', 'csv', 'xls', 'pts', 'sf'], accept_multiple_files=True)
-        
-        smooth = st.checkbox("Сглаживание")
-        if smooth:
-            smooth_force = st.slider("Сила сглаживания", 1, 20, 4)
-        else:
-            smooth_force = 0
 
         for uploaded_file in uploaded_files:
             dataframe = read_file(uploaded_file)
-            if smooth:
-                dataframe = data_correction(dataframe, smooth=smooth_force)
+            # Применяем коррекцию из sidebar
+            dataframe = data_correction(dataframe, correction_list=correction_list, smooth=smooth_force)
             if dataframe is not None:
                 samples.append(os.path.splitext(uploaded_file.name)[0])
                 currents_sample['Длина волны, нм'] = dataframe["Длина волны, нм"]
@@ -232,6 +286,8 @@ else:
         
         if reference_file is not None:
             df_reference = read_file(reference_file)
+            # Применяем коррекцию из sidebar к эталону
+            df_reference = data_correction(df_reference, correction_list=correction_list, smooth=smooth_force)
             df_reference = df_reference.rename(columns={"Интенсивность": "I₀"})
             st.success(f"Загружен эталон: {reference_file.name}")
             
@@ -252,12 +308,6 @@ else:
             accept_multiple_files=True,
             key="samples_uploader"
         )
-        
-        smooth_int = st.checkbox("Сглаживание", key="smooth_intensities")
-        if smooth_int:
-            smooth_force_int = st.slider("Сила сглаживания", 1, 20, 4, key="smooth_force_int")
-        else:
-            smooth_force_int = 0
 
         if df_reference is not None and uploaded_files:
             # Объединяем данные эталона с образцами
@@ -265,9 +315,8 @@ else:
             
             for uploaded_file in uploaded_files:
                 df_sample = read_file(uploaded_file)
-                
-                if smooth_int:
-                    df_sample = data_correction(df_sample, smooth=smooth_force_int)
+                # Применяем коррекцию из sidebar
+                df_sample = data_correction(df_sample, correction_list=correction_list, smooth=smooth_force)
                 
                 if df_sample is not None:
                     sample_name = os.path.splitext(uploaded_file.name)[0]
@@ -297,10 +346,11 @@ else:
             data_valid = True
             
             # Визуализация интенсивностей эталона и образцов на одном графике
-            st.subheader("Интенсивности эталона и образцов")
+            st.subheader("Интенсивности образцов")
             intensity_df = currents_sample.copy()
             intensity_df['I₀ (эталон)'] = df_reference["I₀"].values
-            cols_to_plot = ['I₀ (эталон)'] + samples
+            # cols_to_plot = ['I₀ (эталон)'] + samples
+            cols_to_plot = samples
             fig_int = px.line(intensity_df.dropna(), x="Длина волны, нм",
                              y=cols_to_plot, labels={'value': "Интенсивность"})
             fig_int.update_layout(legend=dict(yanchor="top", xanchor="right"))
@@ -318,27 +368,22 @@ else:
 
 # %% Учёт площади образца
 if (data_valid):
-    with st.expander("Учёт площади образца"):
-        """## Учёт площади образца и построение графика Таука
-        Здесь производится расчёт оптической ширины запрещённой зоны методом Таука.
-        """
+    with st.expander("Построение графика Тауца"):
+        """## Построение графика Тауца"""
+        """Здесь производится расчёт оптической ширины запрещённой зоны методом Тауца."""
         
         # Определяем диапазон данных для обрезки
         hv_values = 1240 / (currents_sample["Длина волны, нм"])
+        
+        # Используем значение hv_range из sidebar
+        # Ограничиваем выбранный диапазон доступными данными
         hv_min = float(np.nanmin(hv_values))
         hv_max = float(np.nanmax(hv_values))
-        
-        # Слайдер для обрезки данных по энергии
-        st.write("**Обрезка данных по энергии (hv):**")
-        hv_range = st.slider(
-            "Выберите диапазон энергии (eV)",
-            min_value=round(hv_min, 2),
-            max_value=round(hv_max, 2),
-            value=(round(hv_min, 2), round(hv_max, 2)),
-            step=0.01,
-            key="hv_range_slider",
-            help="Обрезает данные для расчёта. Полезно для удаления шумных участков спектра."
+        hv_range = (
+            max(hv_range[0], hv_min),
+            min(hv_range[1], hv_max)
         )
+        st.info(f"Диапазон энергии: {hv_range[0]:.2f} - {hv_range[1]:.2f} eV")
         
         # Создаём маску для фильтрации данных
         mask = (hv_values >= hv_range[0]) & (hv_values <= hv_range[1])
@@ -357,7 +402,8 @@ if (data_valid):
         OpticEg["hv"] = (1240 / (filtered_currents_sample["Длина волны, нм"]))
 
         degree = st.selectbox(
-            'Какую степень использовать при вычислениях', (2, 1/2))
+            'Какую степень использовать при вычислениях', (2, 1/2, 1.5, 3), 
+            help="""1/2 для прямых разрешенных переходов\n\n2 для непрямых разрешенных переходов\n\n1.5, 3 для запрещенных переходов""")
         x_asxi = st.selectbox("Подписи горизонтальной оси",
                               ('hv', 'Длина волны, нм'))
 
