@@ -1,253 +1,209 @@
-import streamlit as st # type: ignore
+import streamlit as st
 from scipy import interpolate
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 from io import StringIO
 import os
 import to_IPCE
 
+# Импортируем метод ALS для базовой линии
+from SERS_analis.als import als
+
 @st.cache_data
 def convert_df(df):
-  # IMPORTANT: Cache the conversion to prevent computation on every rerun
-  return df.to_csv(sep=";", index=False).encode('cp1251')
+    return df.to_csv(sep=";", index=False).encode('cp1251')
+
+def extract_photocurrents_from_signal(df, p_type="Анодный (пики вверх)", lam=1e6, p_val=0.01):
+    """Функция для извлечения фототока с помощью ALS"""
+    y = df["Current"].values.copy()
+    
+    if p_type == "Катодный (пики вниз)":
+        y = -y
+        
+    baseline = als(y, lam=lam, p=p_val, itermax=10)
+    photocurrent_signal = y - baseline
+    
+    if p_type == "Катодный (пики вниз)":
+        baseline = -baseline
+        photocurrent_signal = -photocurrent_signal
+        
+    df["Baseline"] = baseline
+    df["Photocurrent_Signal"] = photocurrent_signal
+    
+    extracted_data = []
+    waves = df["Wavelength"].unique()
+    
+    for w in waves:
+        chunk = df[df["Wavelength"] == w]
+        if p_type == "Анодный (пики вверх)":
+            peak_val = np.percentile(chunk["Photocurrent_Signal"], 95)
+        else:
+            peak_val = np.abs(np.percentile(chunk["Photocurrent_Signal"], 5))
+            
+        extracted_data.append({"Длина волны, нм": w, "Photocurrent_A": peak_val})
+        
+    return df, pd.DataFrame(extracted_data)
+
+
+st.title("IPCE (Обработка временных рядов с помощью ALS)")
 
 """## Обработка данных со спектрофотометра для получения зависимости IPCE от длины волны"""
-#%% Калибровочный график
 
-with st.expander("Калибровочный график"):
-  
-  st.markdown('''
-    Этот обработчик был испытан со следующими параметрами на приборе:   
-              Длинны волн: 280 - 450 нм  
-              Шаг длинны волны: 5 нм  
-              Интервал меду измерениями: 50 мс  
-              Время изменения в темноте и на свету: 30 секунд  
-              Время ожидания до измерения: 120 секунд  
-              Смещение на образце: 200 мВ  
-              Чувствительность: 1 мкА  
-          ''')
-  
-  calibration_valid = False
-  calibration_get = st.selectbox(
-    "У вас есть готовый файл калибровки",
-    ("Получить из файла данных", "Загрузить готовый файл калибровки"),
-  )
-  
-  if (calibration_get == "Получить из файла данных"):
+# --- Калибровочный график ---
+with st.expander("Калибровочный график", expanded=True):
+    st.markdown('''
+    **Физика расчета:** Калибровочный фотодиод имеет площадь 1 см², поэтому измеряемая мощность 
+    численно равна **плотности мощности (Вт/см²)** падающего света.
+    ''')
+    
     calibration_valid = False
-    uploaded_file = st.file_uploader("Файл калибровки", type = ['txt', 'csv'])
-    
-
-    if uploaded_file is not None:
-      df = to_IPCE.read_data(uploaded_file)
-      df = to_IPCE.reduction_smooth(df, window=1)
-      df = to_IPCE.time_split(df, start_wave=280)
-      df["Photocurrent"] = df["Current"]
-      df = to_IPCE.get_photocurrent(df, window=10) 
-      if df is not None:
-        df["K_diode"] = df['Wavelength'].apply(to_IPCE.p_diode)
-        df["Мощность излучения, мкВт"] = df["Photocurrent"]/df["K_diode"]
-        calibration_valid = True
-        linear = interpolate.interp1d(df["Wavelength"], df["Мощность излучения, мкВт"], kind="linear")
-        fig = px.line(df, x="Wavelength", y="Мощность излучения, мкВт")
-        st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-        csv = convert_df(df)
-        st.download_button(
-          label="Скачать файл калибровки",
-          data=csv,
-          file_name='Calibration.csv',
-          mime='text/csv',
-          type="primary"
-        )
-        if st.checkbox('Показать таблицу данных калибровки'):
-          df_table = pd.DataFrame([])
-          df_table["Длинна волны, нм"] = df["Wavelength"]
-          df_table["Фототок, мкА"] = df["Photocurrent"]*1e6
-          df_table["K диода"] = df["K_diode"]
-          df_table["Мощность излучения, мкВт"] = df["Мощность излучения, мкВт"]*1e6
-          df_table
-        
-
-
-  else:
-      calibration_valid = False
-      uploaded_file = st.file_uploader("Готовый файл калибровки", type = ['txt', 'csv'])
-      if uploaded_file is not None:
-        df = pd.read_table(uploaded_file, sep=';', encoding="cp1251")
-        if df is not None:
-          calibration_valid = True
-          df
-          linear = interpolate.interp1d(df["Wavelength"], df["Мощность излучения, мкВт"], kind="linear")
-          fig = px.line(df, x="Wavelength", y="Мощность излучения, мкВт")
-          st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-          if st.checkbox('Показать таблицу данных калибровки'):
-            df_table = pd.DataFrame([])
-            df_table["Длинна волны, нм"] = df["Wavelength"]
-            df_table["Фототок, мкА"] = df["Photocurrent"]*1e6
-            df_table["K диода"] = df["K_diode"]
-            df_table["Мощность излучения, мкВт"] = df["Мощность излучения, мкВт"]*1e6
-            df_table
-
-#%%Файлы данных
-if calibration_valid:
-  with st.expander("Файлы данных"):
-    """## Файлы данных.   
-    Тут можно загружать сразу несколько файлов.  
-    Образцам будет присвоено имя файла.
-    """
-
-    data_valid = False
-    uploaded_files = st.file_uploader("Файлы данных", type = ['txt', 'csv'], accept_multiple_files=True)
-    
-    
-    df_photocurrent = pd.DataFrame()
-    samples = []
-    for uploaded_file in uploaded_files:
-            
-      dataframe = to_IPCE.read_data(uploaded_file)
-      dataframe = to_IPCE.time_split(dataframe, start_wave=280)
-      
-      if st.checkbox('Показать таблицу исходный график'):
-        df_photocurrent 
-        fig = px.line(dataframe.dropna(), x="Time", y="Current", labels={'value':"Сила тока, мкА"})
-        fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
-        st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-  
-      
-      dataframe = to_IPCE.reduction_smooth(dataframe)
-      
-      if dataframe is not None:
-        samples.append(os.path.splitext(uploaded_file.name)[0])
-        if ("Time" not in df_photocurrent.columns) or (len(df_photocurrent["Time"] ) < len(dataframe.Time)):
-          df_photocurrent["Time"] = dataframe.Time
-        df_photocurrent[samples[-1]] = dataframe["Current"]
-        data_valid = True    
-
-    if data_valid:
-      fig = px.line(df_photocurrent.dropna(), x="Time", y=samples, labels={'value':"Сила тока, мкА"})
-      fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
-      st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-      if st.checkbox('Показать таблицу исходных фототоков'):
-        dataframe_table = pd.DataFrame([])
-        dataframe_table["Время, c"] = df_photocurrent["Time"]
-        dataframe_table["Ток, мкА"] = df_photocurrent[samples]*1e6
-        dataframe_table    
-
-      
-
-#%% Выгрузка фототоков
-  if data_valid:
-    with st.expander("Извлечение фототоков"):
-      "## Извлечение фототоков из полученных данных"
-
-      measure = to_IPCE.mean_measure(dataframe)
-      measure_in_monowave = st.number_input("Insert a number", step = 1, format="%i", value = round(measure))
-      
-      currents_sample = pd.DataFrame()
-      currents_sample['Длина волны, нм'] = df["Wavelength"]
-      
-      dataframe = to_IPCE.cut_baseline(dataframe, measure_in_monowave=measure_in_monowave)
-      fig = px.line(dataframe.dropna(), x="Time", y="Photocurrent", labels={'value':"Сила тока, мкА"})
-      fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
-      st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-      if st.checkbox('Показать таблицу фототоков без базовой линии'):
-        dataframe_table = pd.DataFrame([])
-        dataframe_table["Время, c"] = dataframe["Time"]
-        dataframe_table["Ток, мкА"] = dataframe["Current"]*1e6
-        dataframe_table["Длина волны, нм"] = dataframe["Wavelength"]
-        dataframe_table["Заслонка"] = dataframe["Shutter"]
-        dataframe_table["Ток, мка"] = dataframe["Photocurrent"]
-        dataframe_table   
-
-      dataframe = to_IPCE.get_photocurrent(dataframe, window=10)
-      if dataframe is not None:
-        currents_sample[samples[-1]] = dataframe["Photocurrent"]
-        
-        
-        fig = px.line(dataframe.dropna(), x="Wavelength", y="Photocurrent", labels={'value':"Сила тока, мкА"})
-        fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
-        st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-        if st.checkbox('Показать таблицу фототоков'):
-          dataframe
-  
-
-#%% Учёт площади образца
-  if data_valid:
-    with st.expander("Учёт площади образца"):
-      "## Пересчёт фототока в плотность фототока для учёта различной площади образца"
-      st.markdown(r'''$I_{удельный} =\frac{I_{образца}}{S_{образца}}$''')
-      # area_sample = pd.DataFrame()
-      # area_sample["Образец"] = samples
-      # area_sample["Площадь образца, см^2"] = 7.0
-      # area_sample = area_sample.astype({"Площадь образца, см^2" : float})
-      # area_sample = st.data_editor(area_sample)
-
-      area_sample =st.number_input("Площадь образца", step = 0.1, format="%f", value = 4.5)
-      
-      dataframe["Photocurrent"] = dataframe["Photocurrent"]/(float(area_sample))
-      if dataframe is not None:
-        currents_sample[samples[-1]] = dataframe["Photocurrent"]
-                
-        fig = px.line(dataframe.dropna(), x="Wavelength", y="Photocurrent", labels={'value':"Сила тока, мкА"})
-        fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
-        st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-        if st.checkbox('Показать таблицу фототоков с учётом площади'):
-          dataframe
-
     calibration_get = st.selectbox(
-        "У вас есть готовый файл калибровки",
-        ("Получить из файла данных", "Загрузить готовый файл калибровки"),
+        "У вас есть готовый файл калибровки?",
+        ("Получить из файла данных (сырые данные эталона)", "Загрузить готовый файл калибровки"),
     )
-
-      # density_current = pd.DataFrame()
-      # density_current['Длина волны, нм'] = currents_sample['Длина волны, нм']
-      
-      # for current_sample in samples:
-      #   area = area_sample.loc[area_sample["Образец"] == current_sample]["Площадь образца, см^2"]
-      #   density_current[current_sample] = currents_sample[current_sample]/(float(area))
+    
+    if (calibration_get == "Получить из файла данных (сырые данные эталона)"):
+        uploaded_file = st.file_uploader("Файл данных эталона", type = ['txt', 'csv'])
         
-      # fig = px.line(density_current.dropna(), x="Длина волны, нм", y=samples, labels={'value': r"Плотность тока, мкА/см^2"})
-      # fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
-      # st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-      # if st.checkbox('Показать таблицу плотности фототоков'):
-      #   density_current
+        if uploaded_file is not None:
+            df_calib_raw = to_IPCE.read_data(uploaded_file)
+            df_calib_raw = to_IPCE.reduction_smooth(df_calib_raw, window=1)
+            df_calib_raw = to_IPCE.time_split(df_calib_raw, start_wave=280)
+            
+            df_calib_raw, df_calib_peaks = extract_photocurrents_from_signal(df_calib_raw, lam=1e6, p_val=0.01)
+            
+            # РАСЧЕТ ПЛОТНОСТИ МОЩНОСТИ (Ток в Амперах / Чувствительность в А/Вт = Мощность в Ваттах)
+            # Т.к. датчик 1 см2, Ватты = Вт/см2
+            df_calib_peaks["K_diode_A_W"] = df_calib_peaks['Длина волны, нм'].apply(to_IPCE.p_diode)
+            df_calib_peaks["Плотность_мощности_Вт_см2"] = df_calib_peaks["Photocurrent_A"] / df_calib_peaks["K_diode_A_W"]
+            df_calib_peaks["Плотность_мощности_мкВт_см2"] = df_calib_peaks["Плотность_мощности_Вт_см2"] * 1e6 
+            
+            calibration_valid = True
+            linear_calib = interpolate.interp1d(df_calib_peaks["Длина волны, нм"], df_calib_peaks["Плотность_мощности_Вт_см2"], kind="linear", fill_value="extrapolate")
+            
+            fig = px.line(df_calib_peaks, x="Длина волны, нм", y="Плотность_мощности_мкВт_см2", title="Плотность мощности излучения")
+            fig.update_layout(yaxis_title="Мощность, мкВт/см²")
+            st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+            
+            csv = convert_df(df_calib_peaks)
+            st.download_button(label="Скачать файл калибровки", data=csv, file_name='Calibration.csv', mime='text/csv')
 
-#%% Пересчёт в IPCE
-  if(data_valid):
-    with st.expander("Пересчёт в IPCE"):
-      "## Пересчёт из плотности тока в IPCE"
-      st.markdown(r'''Тут производится пересчёт величины тока в эффективность преобразования фотона в электрон, по формуле:  
-                  $IPCE =I_{удельный}~*~ \frac{1240}{\lambda}~ / ~ P_{падающая}$''')
-      dataframe["Мощность излучения, мкВт"] = linear(dataframe["Wavelength"])
-      dataframe["IPCE"] = dataframe["Photocurrent"]*1240/dataframe["Wavelength"]/dataframe["Мощность излучения, мкВт"]*100   
-      # dataframe
+    else:
+        uploaded_file = st.file_uploader("Готовый файл калибровки (.csv)", type = ['txt', 'csv'])
+        if uploaded_file is not None:
+            df_calib_peaks = pd.read_table(uploaded_file, sep=';', encoding="cp1251")
+            calibration_valid = True
+            
+            if "Wavelength" in df_calib_peaks.columns:
+                df_calib_peaks.rename(columns={"Wavelength": "Длина волны, нм"}, inplace=True)
+                
+            # Используем колонку с ВАТТАМИ для расчетов
+            linear_calib = interpolate.interp1d(df_calib_peaks["Длина волны, нм"], df_calib_peaks["Плотность_мощности_Вт_см2"], kind="linear", fill_value="extrapolate")
+            
+            fig = px.line(df_calib_peaks, x="Длина волны, нм", y="Плотность_мощности_мкВт_см2", title="Плотность мощности излучения")
+            st.plotly_chart(fig, theme="streamlit", use_container_width=True)
 
-      if dataframe is not None:                
-        fig = px.line(dataframe.dropna(), x="Wavelength", y="IPCE", labels={'value':"IPCE, %"})
-        fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
-        st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-        if st.checkbox('Показать таблицу IPCE'):
-          dataframe
 
-      # IPCE_sample = pd.DataFrame()
-      # IPCE_sample["Длина волны, нм"] = density_current['Длина волны, нм']
-      # for current_sample in samples:
-      #   IPCE_sample[current_sample] = (density_current[current_sample])*1240/currents_sample["Длина волны, нм"]/df["Мощность излучения, мкВт"]*100
-      
-      # fig = px.line(IPCE_sample.dropna(), x="Длина волны, нм", y=samples, labels={'value':"IPCE, %"})
-      # fig.update_layout(legend=dict(yanchor="top",xanchor="right"))
-      # st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-      # if st.checkbox('Показать таблицу IPCE'):
-      #   IPCE_sample
+# --- Файлы данных ---
+if calibration_valid:
+    raw_data_dict = {}
+    
+    with st.expander("Загрузка файлов данных образцов"):
+        uploaded_files = st.file_uploader("Файлы данных образцов", type=['txt', 'csv'], accept_multiple_files=True)
+        
+        for uploaded_file in uploaded_files:
+            df_raw = to_IPCE.read_data(uploaded_file)
+            df_raw = to_IPCE.time_split(df_raw, start_wave=280)
+            df_raw = to_IPCE.reduction_smooth(df_raw)
+            sample_name = os.path.splitext(uploaded_file.name)[0]
+            raw_data_dict[sample_name] = df_raw
+            
+        if len(raw_data_dict) > 0:
+            fig_raw = go.Figure()
+            for name, df in raw_data_dict.items():
+                fig_raw.add_trace(go.Scatter(x=df["Time"], y=df["Current"]*1e6, mode='lines', name=name))
+            fig_raw.update_layout(title="Исходные токи", xaxis_title="Время, с", yaxis_title="Сила тока, мкА")
+            st.plotly_chart(fig_raw, use_container_width=True)
 
-      csv = convert_df(dataframe)
-      
-      st.download_button(
-        label="Скачать результат",
-        data=csv,
-        file_name='IPCE.csv',
-        mime='text/csv',
-        type="primary"
-      )
+    # --- Извлечение фототоков (ALS) ---
+    if len(raw_data_dict) > 0:
+        with st.expander("Настройка базовой линии (ALS) и извлечение фототоков", expanded=True):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                p_type = st.selectbox("Тип проводимости", ["Анодный (пики вверх)", "Катодный (пики вниз)"])
+            with col2:
+                lam_pow = st.slider("Жесткость линии (log10 λ)", 3.0, 10.0, 6.5, 0.5)
+            with col3:
+                p_val = st.number_input("Асимметрия (p)", 0.001, 0.5, 0.01, 0.005, format="%f")
+            
+            lam = 10 ** lam_pow
+            
+            processed_signals = {}
+            currents_abs_A = pd.DataFrame() 
+            
+            for i, (name, df) in enumerate(raw_data_dict.items()):
+                df_processed, df_peaks = extract_photocurrents_from_signal(df, p_type=p_type, lam=lam, p_val=p_val)
+                processed_signals[name] = df_processed
+                
+                if i == 0:
+                    currents_abs_A["Длина волны, нм"] = df_peaks["Длина волны, нм"]
+                currents_abs_A[name] = df_peaks["Photocurrent_A"]
 
+            sample_to_preview = st.selectbox("Выберите образец для проверки базовой линии:", list(processed_signals.keys()))
+            df_preview = processed_signals[sample_to_preview]
+            
+            fig_als = go.Figure()
+            fig_als.add_trace(go.Scatter(x=df_preview["Time"], y=df_preview["Current"]*1e6, name="Исходный сигнал", line=dict(color="lightgray")))
+            fig_als.add_trace(go.Scatter(x=df_preview["Time"], y=df_preview["Baseline"]*1e6, name="Базовая линия (Фон)", line=dict(color="red", width=2)))
+            fig_als.add_trace(go.Scatter(x=df_preview["Time"], y=df_preview["Photocurrent_Signal"]*1e6, name="Извлеченный Фототок", line=dict(color="blue")))
+            fig_als.update_layout(title=f"Проверка ALS (в мкА): {sample_to_preview}", xaxis_title="Время, с", yaxis_title="Ток, мкА", hovermode="x unified")
+            st.plotly_chart(fig_als, use_container_width=True)
+
+        # --- Расчет IPCE ---
+        with st.expander("Расчет IPCE", expanded=True):
+            st.markdown(r'''$IPCE(\%) = \frac{1240 \cdot \mathbf{J} (А/см^2)}{\lambda (нм) \cdot \mathbf{P} (Вт/см^2)} \cdot 100$''')
+            
+            area_sample = st.number_input("Площадь освещаемого образца (см²)", min_value=0.01, value=1.0, step=0.1)
+            
+            ipce_df = pd.DataFrame()
+            ipce_df["Длина волны, нм"] = currents_abs_A["Длина волны, нм"]
+            
+            density_df = pd.DataFrame()
+            density_df["Длина волны, нм"] = currents_abs_A["Длина волны, нм"]
+            
+            # Плотность мощности света строго в Вт/см2
+            power_density_W_cm2 = linear_calib(ipce_df["Длина волны, нм"])
+            
+            for name in processed_signals.keys():
+                current_A = currents_abs_A[name]
+                
+                # Плотность тока в А/см2
+                current_density_A_cm2 = current_A / area_sample
+                
+                # Расчет IPCE (Плотность тока / Плотность мощности)
+                ipce_df[name] = (1240 * current_density_A_cm2) / (ipce_df["Длина волны, нм"] * power_density_W_cm2) * 100
+                
+                # Для красивого графика переводим в мкА/см2
+                density_df[name] = current_density_A_cm2 * 1e6
+            
+            fig_ipce = px.line(ipce_df, x="Длина волны, нм", y=list(processed_signals.keys()), title="Квантовая эффективность (IPCE)")
+            fig_ipce.update_layout(yaxis_title="IPCE, %", xaxis_title="Длина волны, нм")
+            st.plotly_chart(fig_ipce, use_container_width=True)
+            
+            fig_dens = px.line(density_df, x="Длина волны, нм", y=list(processed_signals.keys()), title="Плотность фототока (мкА/см²)")
+            fig_dens.update_layout(yaxis_title="Плотность тока, мкА/см²")
+            st.plotly_chart(fig_dens, use_container_width=True)
+            
+            if st.checkbox('Показать таблицу IPCE'):
+                st.dataframe(ipce_df)
+
+            csv_ipce = convert_df(ipce_df)
+            st.download_button(
+                label="Скачать результат (IPCE.csv)",
+                data=csv_ipce,
+                file_name='IPCE_Results.csv',
+                mime='text/csv',
+                type="primary"
+            )
