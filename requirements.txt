@@ -7,3 +7,6 @@ xlrd
 openpyxl
 statsmodels
 scipy
+opencv-python-headless
+scikit-image
+porespy

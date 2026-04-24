@@ -75,6 +75,12 @@ with col4:
     Анализ спектров комбинационного рассеяния (SERS).
     """
 
+with col4:
+    if st.button("SEM анализ", type="primary"):
+        st.switch_page("pages/SEM.py")
+    """
+    Анализ SEM-изображений: поры и волокна.
+    """
 
 st.divider()
 
